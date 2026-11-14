@@ -1,8 +1,11 @@
 /**
  * @file palette.spec.ts
- * @description Модульные тесты чистых функций управления структурой палитры (Level 3).
- * Проверяют соблюдение принципа неизменяемости (Immutability / Copy-on-Write)
- * и паттерн Arrange-Act-Assert с одним блоком Act.
+ * @description Модульные тесты чистых функций управления структурой палитры (Уровень 3).
+ * 
+ * СТАНДАРТ ТЕСТИРОВАНИЯ (Лабораторная работа №04):
+ * 1. Строгий шаблон Arrange - Act - Assert (AAA).
+ * 2. Ровно ОДНО действие (Act) на каждый тестовый кейс.
+ * 3. Проверка принципа неизменяемости (Immutability / Copy-on-Write).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -20,7 +23,10 @@ import type { ColorPalette, Color } from '../../src/types';
 
 describe('Функция updateColorInPalette (Immutability / Copy-on-Write)', () => {
   it('должна заменять цвет по ID и возвращать новый объект палитры (новая ссылка)', () => {
-    // Arrange: подготовка исходной палитры с двумя цветами
+    // -------------------------------------------------------------
+    // 1. ARRANGE (Подготовка): создаем тестовую палитру с двумя цветами.
+    // Object.freeze гарантирует, что если функция попытается мутировать объект, выбросится ошибка.
+    // -------------------------------------------------------------
     const color1 = createColorFromHex('#ff0000', 'Красный', 'c1');
     const color2 = createColorFromHex('#00ff00', 'Зеленый', 'c2');
     const palette: ColorPalette = Object.freeze({
@@ -32,14 +38,22 @@ describe('Функция updateColorInPalette (Immutability / Copy-on-Write)', (
     });
     const replacementColor: Color = createColorFromHex('#0000ff', 'Синий', 'c1');
 
-    // Act: обновление цвета с id 'c1'
+    // -------------------------------------------------------------
+    // 2. ACT (Действие): вызываем тестируемую функцию (ровно одно действие!).
+    // -------------------------------------------------------------
     const updatedPalette = updateColorInPalette(palette, 'c1', replacementColor);
 
-    // Assert: проверка ссылочной независимости и корректности замены
-    expect(updatedPalette).not.toBe(palette); // новый объект палитры
-    expect(updatedPalette.colors).not.toBe(palette.colors); // новый массив
-    expect(updatedPalette.colors[0]?.hex).toBe('#0000ff'); // заменен
-    expect(updatedPalette.colors[1]).toBe(color2); // незатронутый цвет сохранил ссылку
+    // -------------------------------------------------------------
+    // 3. ASSERT (Проверка утверждений):
+    // -------------------------------------------------------------
+    // Проверяем, что вернулся НОВЫЙ объект в памяти, а не старый (immutability)
+    expect(updatedPalette).not.toBe(palette);
+    // Проверяем, что массив цветов тоже НОВЫЙ
+    expect(updatedPalette.colors).not.toBe(palette.colors);
+    // Проверяем, что нужный цвет действительно заменился на синий (#0000ff)
+    expect(updatedPalette.colors[0]?.hex).toBe('#0000ff');
+    // Проверяем структурное разделение (Structural Sharing): второй нетронутый цвет сохранил свою ссылку
+    expect(updatedPalette.colors[1]).toBe(color2);
   });
 
   it('не должна изменять массив, если передан несуществующий colorId', () => {
@@ -64,7 +78,7 @@ describe('Функция updateColorInPalette (Immutability / Copy-on-Write)', (
 
 describe('Функция addColorToPalette', () => {
   it('должна добавлять цвет в конец массива colors без мутации исходной палитры', () => {
-    // Arrange: палитра с одним цветом
+    // Arrange: исходная палитра с одним цветом
     const color1 = createColorFromHex('#111111', 'Темный', 'c1');
     const initialPalette: ColorPalette = Object.freeze({
       id: 'p1',
@@ -81,13 +95,13 @@ describe('Функция addColorToPalette', () => {
     // Assert
     expect(nextPalette.colors).toHaveLength(2);
     expect(nextPalette.colors[1]).toBe(newColor);
-    expect(initialPalette.colors).toHaveLength(1); // исходная палитра не изменилась
+    expect(initialPalette.colors).toHaveLength(1); // Исходная палитра не изменилась
   });
 });
 
 describe('Функция removeColorFromPalette', () => {
   it('должна удалять цвет по ID с сохранением остальных элементов', () => {
-    // Arrange
+    // Arrange: два цвета
     const color1 = createColorFromHex('#ff0000', 'Красный', 'c1');
     const color2 = createColorFromHex('#00ff00', 'Зеленый', 'c2');
     const palette: ColorPalette = {
@@ -101,7 +115,7 @@ describe('Функция removeColorFromPalette', () => {
     // Act: удаление цвета 'c1'
     const result = removeColorFromPalette(palette, 'c1');
 
-    // Assert
+    // Assert: остался только второй цвет
     expect(result.colors).toHaveLength(1);
     expect(result.colors[0]?.id).toBe('c2');
     expect(palette.colors).toHaveLength(2);
@@ -122,10 +136,10 @@ describe('Функция reorderColorsInPalette', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     };
 
-    // Act: переместить элемент с индекса 0 на индекс 2 (A перемещается в конец: B, C, A)
+    // Act: переместить элемент с индекса 0 на индекс 2 (A перемещается в конец)
     const result = reorderColorsInPalette(palette, 0, 2);
 
-    // Assert
+    // Assert: порядок стал B, C, A
     expect(result.colors.map((c) => c.id)).toEqual(['b', 'c', 'a']);
   });
 
@@ -140,10 +154,10 @@ describe('Функция reorderColorsInPalette', () => {
       createdAt: '2026-01-01T00:00:00.000Z',
     };
 
-    // Act: недопустимый индекс
+    // Act: индекс 99 выходит за границы массива
     const result = reorderColorsInPalette(palette, 0, 99);
 
-    // Assert
+    // Assert: вернулась исходная палитра без сбоев
     expect(result).toBe(palette);
   });
 });
@@ -201,12 +215,12 @@ describe('Расчет средней яркости палитры (calculatePa
     // Act
     const avgLum = calculatePaletteAverageLuminance(palette);
 
-    // Assert: среднее между 0 и 1 равно 0.5
+    // Assert: среднее между 0 и 1 равно ровно 0.5
     expect(avgLum).toBe(0.5);
   });
 
   it('должна возвращать 0 для пустой палитры', () => {
-    // Arrange: палитра без цветов
+    // Arrange
     const emptyPalette = createNewPalette('Пустая', '', []);
 
     // Act

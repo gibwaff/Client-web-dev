@@ -1,13 +1,22 @@
 <script setup lang="ts">
 /**
  * @file AppCard.vue
- * @description Базовый компонент карточки, демонстрирующий использование слотов Vue (slots):
- * слоты #header, default (тело) и #footer (#actions).
+ * @description Базовый компонент карточки-контейнера, демонстрирующий механизм СЛОТОВ (Slots) в Vue 3.
+ * 
+ * ЧТО ТАКОЕ СЛОТЫ:
+ * Слоты — это специальные «окна» в разметке дочернего компонента, куда родительский
+ * компонент может передать свою кастомную верстку (кнопки, заголовки, бейджи, текст).
+ * 
+ * В ЭТОМ КОМПОНЕНТЕ РЕАЛИЗОВАНЫ:
+ * 1. Именованный слот #header — для заголовка (с fallback-контентом, если слот не передан).
+ * 2. Именованный слот #extra — для правого верхнего угла (даты, статусы, бейджи).
+ * 3. Дефолтный слот <slot /> — для основного содержимого (тела карточки).
+ * 4. Именованный слот #footer — для панели действий и кнопок внизу карточки.
  */
 interface Props {
-  title?: string;
-  subtitle?: string;
-  hoverable?: boolean;
+  title?: string;       // Заголовок по умолчанию (используется, если не передан кастомный слот #header)
+  subtitle?: string;    // Подзаголовок по умолчанию
+  hoverable?: boolean;  // Добавлять ли анимацию приподнимания при наведении курсора
 }
 
 withDefaults(defineProps<Props>(), {
@@ -19,25 +28,40 @@ withDefaults(defineProps<Props>(), {
 
 <template>
   <div class="app-card" :class="{ 'app-card--hoverable': hoverable }">
-    <!-- Слот заголовка с fallback содержимым -->
+    <!-- Шапка карточки: отображается, если передан слот #header или заголовок title -->
     <header v-if="$slots.header || title" class="app-card__header">
+      <!-- 
+        ИМЕНОВАННЫЙ СЛОТ #header С РЕЗЕРВНЫМ (FALLBACK) СОДЕРЖИМЫМ:
+        Если родитель передал `<template #header>...</template>`, отрендерится контент родителя.
+        Если родитель слот НЕ передал, сработает дефолтная разметка с h3 и p.
+      -->
       <slot name="header">
         <div class="app-card__titles">
           <h3 v-if="title" class="app-card__title">{{ title }}</h3>
           <p v-if="subtitle" class="app-card__subtitle">{{ subtitle }}</p>
         </div>
       </slot>
+
+      <!-- Именованный слот #extra для вспомогательных элементов справа -->
       <div v-if="$slots.extra" class="app-card__extra">
         <slot name="extra" />
       </div>
     </header>
 
-    <!-- Основной слот (тело карточки) -->
+    <!-- 
+      ОСНОВНОЙ ДЕФОЛТНЫЙ СЛОТ:
+      Сюда попадает весь контент, который родитель пишет между открывающим
+      и закрывающим тегом: `<AppCard> ВОТ ЭТОТ КОНТЕНТ </AppCard>`.
+    -->
     <div class="app-card__body">
       <slot />
     </div>
 
-    <!-- Слот подвала / действий -->
+    <!-- 
+      ИМЕНОВАННЫЙ СЛОТ #footer:
+      Отображается только если родитель передал `<template #footer>...</template>`.
+      Используется для кнопок «Сохранить», «Удалить», «Редактировать».
+    -->
     <footer v-if="$slots.footer" class="app-card__footer">
       <slot name="footer" />
     </footer>

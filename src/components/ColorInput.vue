@@ -1,8 +1,16 @@
 <script setup lang="ts">
 /**
  * @file ColorInput.vue
- * @description Интерактивный редактор цвета с мгновенной взаимной синхронизацией
- * форматов HEX, RGB и HSL. Содержит валидацию диапазонов координат и ползунки.
+ * @description Интерактивный редактор цвета с взаимной синхронизацией HEX, RGB и HSL.
+ * 
+ * ЧТО ЗДЕСЬ ПРОИСХОДИТ:
+ * 1. Пользователь может менять цвет тремя способами:
+ *    - через шестнадцатеричный код HEX (#3B82F6);
+ *    - через ползунки RGB (R: 0-255, G: 0-255, B: 0-255);
+ *    - через параметры HSL (H: 0-360°, S: 0-100%, L: 0-100%).
+ * 2. При изменении ЛЮБОГО параметра функция-синхронизатор пересчитывает все остальные
+ *    представления и обновляет цветную плашку предварительного просмотра.
+ * 3. Валидация блокирует кнопку добавления при вводе некорректных значений.
  */
 import { ref, watch } from 'vue';
 import type { Color, RGB, HSL } from '../types';
@@ -17,8 +25,8 @@ import {
 } from '../utils/color';
 
 interface Props {
-  initialHex?: string;
-  submitButtonText?: string;
+  initialHex?: string;           // Начальный цвет при открытии редактора
+  submitButtonText?: string;     // Текст на кнопке добавления
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -26,34 +34,38 @@ const props = withDefaults(defineProps<Props>(), {
   submitButtonText: 'Добавить цвет в палитру',
 });
 
+/**
+ * Испускаемые события:
+ * - 'color-submit': вызывается при клике на основную кнопку «Добавить цвет»
+ * - 'change': вызывается при каждом движении ползунка (живая синхронизация)
+ */
 const emit = defineEmits<{
   (e: 'color-submit', color: Color): void;
   (e: 'change', color: Color): void;
 }>();
 
-// Активная вкладка управления (HEX, RGB, HSL)
+// Активная вкладка формата: 'hex', 'rgb' или 'hsl'
 const activeTab = ref<'hex' | 'rgb' | 'hsl'>('hex');
 
-// Локальное состояние полей
+// Локальные реактивные переменные полей формы
 const hexValue = ref<string>(props.initialHex);
 const colorName = ref<string>('');
-
 const rgbValue = ref<RGB>({ r: 59, g: 130, b: 246 });
 const hslValue = ref<HSL>({ h: 217, s: 91, l: 60 });
 
 // Текущий скомпилированный объект цвета
 const currentColor = ref<Color>(createColorFromHex(props.initialHex));
 
-// Ошибки валидации
+// Ошибки валидации для каждого формата
 const hexError = ref<string | null>(null);
 const rgbError = ref<string | null>(null);
 const hslError = ref<string | null>(null);
 
-// Инициализация при монтировании
+// Первичная инициализация при создании компонента
 syncFromHex(props.initialHex);
 
 /**
- * Синхронизирует все представления из HEX
+ * Синхронизирует RGB и HSL на основе введенного HEX.
  */
 function syncFromHex(hex: string) {
   const val = validateHex(hex);
@@ -62,17 +74,21 @@ function syncFromHex(hex: string) {
     return;
   }
   hexError.value = null;
+
+  // Создаем объект цвета через чистую функцию
   const col = createColorFromHex(hex, colorName.value || undefined);
   currentColor.value = col;
   rgbValue.value = { ...col.rgb };
   hslValue.value = { ...col.hsl };
   rgbError.value = null;
   hslError.value = null;
+
+  // Уведомляем родительский компонент о смене цвета
   emit('change', col);
 }
 
 /**
- * Синхронизирует все представления из RGB
+ * Синхронизирует HEX и HSL на основе измененных каналов RGB.
  */
 function syncFromRgb() {
   const val = validateRgb(rgbValue.value);
@@ -81,17 +97,19 @@ function syncFromRgb() {
     return;
   }
   rgbError.value = null;
+
   const col = createColorFromRgb(rgbValue.value, colorName.value || undefined);
   currentColor.value = col;
   hexValue.value = col.hex;
   hslValue.value = { ...col.hsl };
   hexError.value = null;
   hslError.value = null;
+
   emit('change', col);
 }
 
 /**
- * Синхронизирует все представления из HSL
+ * Синхронизирует HEX и RGB на основе параметров HSL.
  */
 function syncFromHsl() {
   const val = validateHsl(hslValue.value);
@@ -100,23 +118,25 @@ function syncFromHsl() {
     return;
   }
   hslError.value = null;
+
   const col = createColorFromHsl(hslValue.value, colorName.value || undefined);
   currentColor.value = col;
   hexValue.value = col.hex;
   rgbValue.value = { ...col.rgb };
   hexError.value = null;
   rgbError.value = null;
+
   emit('change', col);
 }
 
-// Обработка нативного color-picker
+// Обработка выбора цвета через встроенную браузерную пипетку <input type="color">
 function onNativeColorPick(e: Event) {
   const target = e.target as HTMLInputElement;
   hexValue.value = target.value;
   syncFromHex(target.value);
 }
 
-// Отправка готового цвета
+// Отправка готового цвета в родительский компонент
 function handleSubmit() {
   if (hexError.value || rgbError.value || hslError.value) {
     return;
@@ -126,10 +146,10 @@ function handleSubmit() {
     name: colorName.value.trim() || currentColor.value.name,
   };
   emit('color-submit', colorToSubmit);
-  // Сброс имени после добавления
-  colorName.value = '';
+  colorName.value = ''; // Очищаем поле названия после добавления
 }
 
+// Наблюдатель (watcher): обновляет цвет, если родитель передал новый initialHex
 watch(
   () => props.initialHex,
   (newHex) => {
@@ -143,7 +163,7 @@ watch(
 
 <template>
   <div class="color-input-widget">
-    <!-- Верхняя панель: предварительный просмотр и нативный выбор цвета -->
+    <!-- Верхняя панель: живой квадрат цвета и поле названия -->
     <div class="color-input-widget__preview-bar">
       <div class="swatch-wrapper">
         <div
@@ -173,7 +193,7 @@ watch(
       </div>
     </div>
 
-    <!-- Вкладки форматов ввода -->
+    <!-- Вкладки переключения формата: HEX, RGB или HSL -->
     <div class="tabs-nav">
       <button
         type="button"
@@ -201,7 +221,7 @@ watch(
       </button>
     </div>
 
-    <!-- Контент вкладки HEX -->
+    <!-- Вкладка 1: Шестнадцатеричный ввод HEX -->
     <div v-if="activeTab === 'hex'" class="tab-content">
       <div class="form-group">
         <label for="hex-field" class="field-label">Шестнадцатеричный код (HEX):</label>
@@ -219,10 +239,10 @@ watch(
       </div>
     </div>
 
-    <!-- Контент вкладки RGB -->
+    <!-- Вкладка 2: Ползунки и числовые поля RGB -->
     <div v-if="activeTab === 'rgb'" class="tab-content">
       <div class="sliders-grid">
-        <!-- Red -->
+        <!-- Красный канал R -->
         <div class="slider-row">
           <label class="slider-label" style="color: #ef4444;">
             R (Красный): {{ rgbValue.r }}
@@ -245,7 +265,7 @@ watch(
           />
         </div>
 
-        <!-- Green -->
+        <!-- Зеленый канал G -->
         <div class="slider-row">
           <label class="slider-label" style="color: #10b981;">
             G (Зеленый): {{ rgbValue.g }}
@@ -268,7 +288,7 @@ watch(
           />
         </div>
 
-        <!-- Blue -->
+        <!-- Синий канал B -->
         <div class="slider-row">
           <label class="slider-label" style="color: #3b82f6;">
             B (Синий): {{ rgbValue.b }}
@@ -294,10 +314,10 @@ watch(
       <p v-if="rgbError" class="validation-message error-text">{{ rgbError }}</p>
     </div>
 
-    <!-- Контент вкладки HSL -->
+    <!-- Вкладка 3: Ползунки и числовые поля HSL -->
     <div v-if="activeTab === 'hsl'" class="tab-content">
       <div class="sliders-grid">
-        <!-- Hue -->
+        <!-- Тон H (0-360 градусов) -->
         <div class="slider-row">
           <label class="slider-label">
             H (Цветовой тон): {{ hslValue.h }}°
@@ -320,7 +340,7 @@ watch(
           />
         </div>
 
-        <!-- Saturation -->
+        <!-- Насыщенность S (0-100%) -->
         <div class="slider-row">
           <label class="slider-label">
             S (Насыщенность): {{ hslValue.s }}%
@@ -343,7 +363,7 @@ watch(
           />
         </div>
 
-        <!-- Lightness -->
+        <!-- Светлота L (0-100%) -->
         <div class="slider-row">
           <label class="slider-label">
             L (Светлота): {{ hslValue.l }}%
@@ -369,7 +389,7 @@ watch(
       <p v-if="hslError" class="validation-message error-text">{{ hslError }}</p>
     </div>
 
-    <!-- Кнопка добавления -->
+    <!-- Кнопка отправки формы: отключается (disabled), если есть хоть одна ошибка валидации -->
     <div class="widget-footer">
       <button
         type="button"

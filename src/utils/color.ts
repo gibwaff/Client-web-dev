@@ -1,38 +1,43 @@
 /**
  * @file color.ts
- * @description Чистые функции (Level 2/3) для конвертации координат цветов между форматами RGB, HSL и HEX,
- * а также функции валидации и создания объектов Color.
- * Все функции детерминированы, не производят побочных эффектов и возвращают новые иммутабельные объекты.
+ * @description Чистые функции для конвертации координат цвета между форматами HEX, RGB и HSL,
+ * а также функции валидации диапазонов и создания объектов Color (Уровень 2: Математические утилиты).
+ * 
+ * ЧИСТЫЕ ФУНКЦИИ (PURE FUNCTIONS):
+ * Детерминированы: при одних и тех же входных аргументах ВСЕГДА возвращают один и тот же результат.
+ * Не имеют побочных эффектов: не делают сетевых запросов, не меняют переменные вне себя.
  */
 
 import type { RGB, HSL, Color, ValidationResult } from '../types';
 
 /**
  * Ограничивает число диапазоном [min, max].
- * Чистая математическая функция Level 2.
+ * Если число меньше min — возвращает min. Если больше max — max.
  */
 export function clamp(val: number, min: number, max: number): number {
   return Math.min(Math.max(val, min), max);
 }
 
 /**
- * Генерирует уникальный строковый ID (Level 2).
+ * Генерирует уникальный строковый идентификатор для цвета (Level 2).
  */
 export function generateId(): string {
   return 'col_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 }
 
 /**
- * Проверяет корректность HEX-строки цвета (#RGB или #RRGGBB).
+ * Проверяет корректность HEX-строки цвета с помощью регулярного выражения.
+ * Поддерживает как 3-символьные (#F00), так и 6-символьные (#FF0000) коды.
  */
 export function isValidHex(hex: string): boolean {
   if (typeof hex !== 'string') return false;
   const clean = hex.trim();
+  // Регулярное выражение: начинается с #, далее либо 3, либо 6 шестнадцатеричных цифр (0-9, a-f)
   return /^#([A-Fa-f0-9]{3}|[A-Fa-f0-9]{6})$/.test(clean);
 }
 
 /**
- * Валидирует HEX с возвратом русскоязычной ошибки для UI.
+ * Валидирует HEX-код с возвратом понятного текста ошибки для пользователя интерфейса.
  */
 export function validateHex(hex: string): ValidationResult {
   if (!hex || hex.trim() === '') {
@@ -45,7 +50,7 @@ export function validateHex(hex: string): ValidationResult {
 }
 
 /**
- * Проверяет корректность RGB координат [0, 255].
+ * Проверяет, что координаты RGB являются конечными числами в диапазоне [0, 255].
  */
 export function isValidRgb(rgb: RGB): boolean {
   if (!rgb || typeof rgb !== 'object') return false;
@@ -57,7 +62,7 @@ export function isValidRgb(rgb: RGB): boolean {
 }
 
 /**
- * Валидирует RGB каналы.
+ * Валидирует RGB каналы для UI.
  */
 export function validateRgb(rgb: RGB): ValidationResult {
   if (!isValidRgb(rgb)) {
@@ -67,8 +72,10 @@ export function validateRgb(rgb: RGB): ValidationResult {
 }
 
 /**
- * Проверяет корректность HSL координат:
- * h: [0, 360], s: [0, 100], l: [0, 100].
+ * Проверяет, что координаты HSL находятся в допустимых пределах:
+ * H (оттенок): от 0 до 360 градусов;
+ * S (насыщенность): от 0 до 100 процентов;
+ * L (светлота): от 0 до 100 процентов.
  */
 export function isValidHsl(hsl: HSL): boolean {
   if (!hsl || typeof hsl !== 'object') return false;
@@ -80,7 +87,7 @@ export function isValidHsl(hsl: HSL): boolean {
 }
 
 /**
- * Валидирует HSL каналы.
+ * Валидирует HSL каналы для UI.
  */
 export function validateHsl(hsl: HSL): ValidationResult {
   if (!isValidHsl(hsl)) {
@@ -90,13 +97,14 @@ export function validateHsl(hsl: HSL): ValidationResult {
 }
 
 /**
- * Нормализует 3-значный HEX (#abc) в 6-значный (#aabbcc).
+ * Нормализует HEX-строку: разворачивает короткий 3-значный код (#abc) в полный 6-значный (#aabbcc).
  */
 export function normalizeHex(hex: string): string {
   let clean = hex.trim();
   if (!clean.startsWith('#')) {
     clean = '#' + clean;
   }
+  // Если код короткий (#f00), удваиваем каждый символ: f -> ff, 0 -> 00, 0 -> 00
   if (clean.length === 4) {
     const r = clean[1];
     const g = clean[2];
@@ -107,21 +115,27 @@ export function normalizeHex(hex: string): string {
 }
 
 /**
- * Преобразует HEX-строку в RGB-координаты.
+ * Преобразует HEX-строку в числовые координаты RGB.
+ * Например: '#ff8800' -> { r: 255, g: 136, b: 0 }.
+ * 
+ * ПОЧЕМУ ТАК:
+ * parseInt(hexString, 16) парсит строку в шестнадцатеричной системе счисления.
  */
 export function hexToRgb(hex: string): RGB {
   const normalized = normalizeHex(hex);
   if (!isValidHex(normalized)) {
-    return { r: 0, g: 0, b: 0 };
+    return { r: 0, g: 0, b: 0 }; // Защитный fallback для невалидного ввода
   }
-  const r = parseInt(normalized.slice(1, 3), 16);
-  const g = parseInt(normalized.slice(3, 5), 16);
-  const b = parseInt(normalized.slice(5, 7), 16);
+  const r = parseInt(normalized.slice(1, 3), 16); // Символы с 1 по 3 (красный)
+  const g = parseInt(normalized.slice(3, 5), 16); // Символы с 3 по 5 (зеленый)
+  const b = parseInt(normalized.slice(5, 7), 16); // Символы с 5 по 7 (синий)
   return { r, g, b };
 }
 
 /**
- * Преобразует RGB-координаты в HEX-строку.
+ * Преобразует RGB-координаты в строковый HEX.
+ * Например: { r: 59, g: 130, b: 246 } -> '#3b82f6'.
+ * padStart(2, '0') гарантирует, что число меньше 16 будет записано с ведущим нулем ('0a', а не 'a').
  */
 export function rgbToHex(rgb: RGB): string {
   const r = clamp(Math.round(rgb.r), 0, 255).toString(16).padStart(2, '0');
@@ -131,9 +145,14 @@ export function rgbToHex(rgb: RGB): string {
 }
 
 /**
- * Преобразует RGB в HSL.
- * Формулы стандартного колориметрического преобразования:
- * r, g, b делятся на 255 для диапазона [0, 1].
+ * Преобразует RGB в HSL (Hue, Saturation, Lightness).
+ * 
+ * АЛГОРИТМ:
+ * 1. Нормализуем r, g, b в диапазон [0, 1].
+ * 2. Находим max и min из каналов, и вычисляем разницу delta = max - min.
+ * 3. Светлота L вычисляется как среднее между максимумом и минимумом: (max + min) / 2.
+ * 4. Насыщенность S зависит от того, насколько светлый или темный цвет.
+ * 5. Тон H вычисляется в зависимости от того, какой канал оказался максимальным (R, G или B).
  */
 export function rgbToHsl(rgb: RGB): HSL {
   const r = clamp(rgb.r, 0, 255) / 255;
@@ -172,7 +191,7 @@ export function rgbToHsl(rgb: RGB): HSL {
 }
 
 /**
- * Вспомогательная функция для HSL -> RGB.
+ * Вспомогательная математическая функция для HSL -> RGB перевода.
  */
 function hueToRgb(p: number, q: number, t: number): number {
   let normalizedT = t;
@@ -185,15 +204,15 @@ function hueToRgb(p: number, q: number, t: number): number {
 }
 
 /**
- * Преобразует HSL в RGB.
+ * Преобразует HSL обратно в координаты RGB.
  */
 export function hslToRgb(hsl: HSL): RGB {
   const h = ((hsl.h % 360) + 360) % 360 / 360;
   const s = clamp(hsl.s, 0, 100) / 100;
   const l = clamp(hsl.l, 0, 100) / 100;
 
+  // Если насыщенность 0 — это ахроматический цвет (оттенок серого)
   if (s === 0) {
-    // Ахроматический цвет (оттенки серого)
     const gray = Math.round(l * 255);
     return { r: gray, g: gray, b: gray };
   }
@@ -213,7 +232,7 @@ export function hslToRgb(hsl: HSL): RGB {
 }
 
 /**
- * Преобразует HSL в HEX.
+ * Преобразует HSL в HEX через промежуточный RGB.
  */
 export function hslToHex(hsl: HSL): string {
   const rgb = hslToRgb(hsl);
@@ -221,7 +240,7 @@ export function hslToHex(hsl: HSL): string {
 }
 
 /**
- * Преобразует HEX в HSL.
+ * Преобразует HEX в HSL через промежуточный RGB.
  */
 export function hexToHsl(hex: string): HSL {
   const rgb = hexToRgb(hex);
@@ -229,7 +248,8 @@ export function hexToHsl(hex: string): HSL {
 }
 
 /**
- * Создает полноценный объект Color из HEX-строки.
+ * Фабричная функция: создает полноценный объект Color из строки HEX.
+ * Автоматически рассчитывает синхронизированные координаты RGB и HSL.
  */
 export function createColorFromHex(hex: string, name?: string, id?: string): Color {
   const normalizedHex = normalizeHex(hex);
@@ -245,7 +265,7 @@ export function createColorFromHex(hex: string, name?: string, id?: string): Col
 }
 
 /**
- * Создает полноценный объект Color из RGB-координат.
+ * Фабричная функция: создает объект Color из RGB координат.
  */
 export function createColorFromRgb(rgb: RGB, name?: string, id?: string): Color {
   const clampedRgb: RGB = {
@@ -265,7 +285,7 @@ export function createColorFromRgb(rgb: RGB, name?: string, id?: string): Color 
 }
 
 /**
- * Создает полноценный объект Color из HSL-координат.
+ * Фабричная функция: создает объект Color из HSL координат.
  */
 export function createColorFromHsl(hsl: HSL, name?: string, id?: string): Color {
   const clampedHsl: HSL = {

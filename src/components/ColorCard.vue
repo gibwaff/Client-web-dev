@@ -1,52 +1,78 @@
 <script setup lang="ts">
 /**
  * @file ColorCard.vue
- * @description Компонент отображения отдельного цвета в палитре.
- * Демонстрирует использование defineProps, defineEmits, вычисляемых свойств (computed) и слотов.
+ * @description Компонент карточки отдельного цвета.
+ * 
+ * КЛЮЧЕВЫЕ КОНЦЕПЦИИ VUE В ЭТОМ ФАЙЛЕ:
+ * 1. defineProps — объявление входных параметров, которые родитель передает в карточку.
+ * 2. defineEmits — объявление событий, которые карточка испускает наверх родителю.
+ * 3. computed — вычисляемое свойство (кэширует расчет контрастного цвета надписи).
+ * 4. Слоты (Slots) — слот #actions позволяет родителю вставить свои кнопки в карточку.
  */
 import { ref, computed } from 'vue';
 import type { Color } from '../types';
 import { getLuminance } from '../utils/contrast';
 
+/**
+ * Описание входных параметров (Props)
+ */
 interface Props {
-  color: Color;
-  removable?: boolean;
-  selectable?: boolean;
+  color: Color;             // Объект цвета (обязательный параметр)
+  removable?: boolean;      // Показывать ли крестик удаления (по умолчанию false)
+  selectable?: boolean;     // Можно ли кликнуть на карточку для выбора
 }
 
+// withDefaults задает значения по умолчанию для необязательных props
 const props = withDefaults(defineProps<Props>(), {
   removable: false,
   selectable: false,
 });
 
+/**
+ * Описание событий (Emits), которые компонент может генерировать:
+ * - 'remove': отправляет ID цвета при удалении
+ * - 'select': отправляет весь объект цвета при клике
+ */
 const emit = defineEmits<{
   (e: 'remove', id: string): void;
   (e: 'select', color: Color): void;
 }>();
 
+// Локальное реактивное состояние для плашки «Скопировано!»
 const copiedField = ref<string | null>(null);
 
 /**
- * Вычисляемое свойство: оптимальный цвет текста (черный или белый)
- * для читаемости поверх цвета плашки.
+ * ВЫЧИСЛЯЕМОЕ СВОЙСТВО (COMPUTED PROPERTY):
+ * 
+ * ЗАЧЕМ НУЖНО:
+ * Название цвета пишется прямо поверх цветной плашки.
+ * Если плашка светлая (желтая, белая) — текст должен быть темным (#0f172a).
+ * Если плашка темная (синяя, черная) — текст должен быть белым (#ffffff).
+ * 
+ * ПОЧЕМУ COMPUTED, А НЕ ОБЫЧНАЯ ФУНКЦИЯ:
+ * computed кэширует свой результат и пересчитывается ТОЛЬКО тогда,
+ * когда меняется цвет в props.color.
  */
 const textContrastColor = computed(() => {
   const lum = getLuminance(props.color.rgb);
+  // Порог 0.4: если яркость выше 40% — пишем темным шрифтом, иначе белым
   return lum > 0.4 ? '#0f172a' : '#ffffff';
 });
 
 /**
- * Копирование значения в буфер обмена
+ * Копирование HEX, RGB или HSL кода в буфер обмена операционной системы
+ * через стандартный браузерный API navigator.clipboard.
  */
 async function copyToClipboard(text: string, label: string) {
   try {
     await navigator.clipboard.writeText(text);
     copiedField.value = label;
+    // Через 1.5 секунды убираем бейдж «Скопировано!»
     setTimeout(() => {
       copiedField.value = null;
     }, 1500);
   } catch (err) {
-    console.error('Ошибка копирования:', err);
+    console.error('Ошибка доступа к буферу обмена:', err);
   }
 }
 </script>
@@ -57,7 +83,7 @@ async function copyToClipboard(text: string, label: string) {
     :class="{ 'color-card--selectable': selectable }"
     @click="selectable && emit('select', color)"
   >
-    <!-- Плашка цвета -->
+    <!-- Плашка цвета с динамическим стилем фона и цвета текста -->
     <div
       class="color-card__swatch"
       :style="{ backgroundColor: color.hex, color: textContrastColor }"
@@ -68,8 +94,9 @@ async function copyToClipboard(text: string, label: string) {
       </span>
     </div>
 
-    <!-- Блок со значениями форматов (HEX, RGB, HSL) -->
+    <!-- Блок значений: HEX, RGB, HSL с кнопками быстрого копирования -->
     <div class="color-card__values">
+      <!-- @click.stop предотвращает всплытие события (event bubbling), чтобы не сработал клик по всей карточке -->
       <button
         type="button"
         class="value-chip"
@@ -103,6 +130,7 @@ async function copyToClipboard(text: string, label: string) {
 
     <!-- Кнопка удаления или кастомные действия через слот -->
     <div v-if="removable || $slots.actions" class="color-card__actions">
+      <!-- Именованный слот #actions: если родитель передал свои кнопки — рендерятся они, иначе крестик -->
       <slot name="actions">
         <button
           v-if="removable"
